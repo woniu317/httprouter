@@ -5,6 +5,7 @@
 package httprouter
 
 import (
+	"fmt"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -26,7 +27,7 @@ func longestCommonPrefix(a, b string) int {
 	return i
 }
 
-// Search for a wildcard segment and check the name for invalid characters.
+// findWildcard Search for a wildcard segment and check the name for invalid characters.
 // Returns -1 as index, if no wildcard was found.
 func findWildcard(path string) (wilcard string, i int, valid bool) {
 	// Find start
@@ -81,7 +82,7 @@ type node struct {
 	handle    Handle
 }
 
-// Increments priority of the given child and reorders if necessary
+// incrementChildPrio Increments priority of the given child and reorders if necessary
 func (n *node) incrementChildPrio(pos int) int {
 	cs := n.children
 	cs[pos].priority++
@@ -214,6 +215,44 @@ walk:
 	}
 }
 
+func (n *node) delRoute(path string) {
+	fullPath := path
+	if n == nil {
+		return
+	}
+walk:
+	for {
+		if !strings.HasPrefix(path, n.path) {
+			fmt.Printf("unknown1 path=%s\n", fullPath)
+			// not exists
+			return
+		}
+
+		path = path[len(n.path):]
+		if path == "" {
+			n.handle = nil
+			return
+		}
+
+		if n.wildChild {
+			n = n.children[0]
+			continue walk
+		}
+
+		idxc := path[0]
+		for i, c := range []byte(n.indices) {
+			if c == idxc {
+				n = n.children[i]
+				continue walk
+			}
+		}
+
+		fmt.Printf("unknown2 path=%s\n", fullPath)
+		// not exists
+		return
+	}
+}
+
 func (n *node) insertChild(path, fullPath string, handle Handle) {
 	for {
 		// Find prefix until first wildcard
@@ -318,7 +357,7 @@ func (n *node) insertChild(path, fullPath string, handle Handle) {
 	n.handle = handle
 }
 
-// Returns the handle registered with the given path (key). The values of
+// getValue Returns the handle registered with the given path (key). The values of
 // wildcards are saved to a map.
 // If no handle can be found, a TSR (trailing slash redirect) recommendation is
 // made if a handle exists with an extra (without the) trailing slash for the
@@ -457,7 +496,7 @@ walk: // Outer loop for walking the tree
 	}
 }
 
-// Makes a case-insensitive lookup of the given path and tries to find a handler.
+// findCaseInsensitivePath Makes a case-insensitive lookup of the given path and tries to find a handler.
 // It can optionally also fix trailing slashes.
 // It returns the case-corrected path and a bool indicating whether the lookup
 // was successful.
@@ -481,7 +520,7 @@ func (n *node) findCaseInsensitivePath(path string, fixTrailingSlash bool) (fixe
 	return string(ciPath), ciPath != nil
 }
 
-// Shift bytes in array by n bytes left
+// shiftNRuneBytes Shift bytes in array by n bytes left
 func shiftNRuneBytes(rb [4]byte, n int) [4]byte {
 	switch n {
 	case 0:
@@ -497,7 +536,7 @@ func shiftNRuneBytes(rb [4]byte, n int) [4]byte {
 	}
 }
 
-// Recursive case-insensitive lookup function used by n.findCaseInsensitivePath
+// findCaseInsensitivePathRec Recursive case-insensitive lookup function used by n.findCaseInsensitivePath
 func (n *node) findCaseInsensitivePathRec(path string, ciPath []byte, rb [4]byte, fixTrailingSlash bool) []byte {
 	npLen := len(n.path)
 

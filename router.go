@@ -281,6 +281,28 @@ func (r *Router) DELETE(path string, handle Handle) {
 	r.Handle(http.MethodDelete, path, handle)
 }
 
+// DeleteHandle deletes a request handler with the given method and path
+func (r *Router) DeleteHandle(method, path string) {
+	if method == "" {
+		panic("method must not be empty")
+	}
+
+	if len(path) < 1 || path[0] != '/' {
+		panic("path must begin with '/' in path '" + path + "'")
+	}
+
+	if r.trees == nil {
+		return
+	}
+
+	root := r.trees[method]
+	if root == nil {
+		return
+	}
+
+	root.delRoute(path)
+}
+
 // Handle registers a new request handle with the given path and method.
 //
 // For GET, POST, PUT, PATCH and DELETE requests the respective shortcut
